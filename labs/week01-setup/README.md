@@ -7,14 +7,14 @@ for full instructions; this README is where you record proof that your setup wor
 
 Paste the output of the two checkpoint commands from Part 1 of the handout below,
 then commit and push this file as part of the `week01-setup` branch / PR.
-
+Hi hussainnomaan! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 $ python --version
-(paste output here)
+Python 3.11.10
 
 $ python hello_env.py
-(paste output here)
-```
+
+/Users/hussainnomaan/hussainnomaan-mlops-course```
 
 ## Reflection (second PR)
 
