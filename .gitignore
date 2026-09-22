@@ -24,5 +24,3 @@ data/*
 # MLflow / experiment tracking local artifacts
 mlruns/
 wandb/
-
-data/
