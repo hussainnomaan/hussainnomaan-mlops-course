@@ -1,7 +1,13 @@
-# Week 04 Lab
+## Reflection
 
-Build a reusable preprocessing pipeline (sklearn Pipeline/ColumnTransformer); PCA as a worked stateful-transform example.
+**1. The original accuracy and the fixed pipeline's accuracy turned out close (0.6375 both times). Why doesn't that mean the leak was harmless?**
+Accuracy is a downstream, noisy signal — with only 400 rows and a modest amount of leaked information, the leak wasn't large enough to visibly move that one number. But the leak was still real: the imputer and scaler statistics themselves were measurably different when fit on the full dataset vs. only the training rows (e.g. annual_income's mean was 43761.45 leaky vs. 43213.02 correct). On a larger dataset, a stronger feature, or a different metric, the same category of leak could easily produce an optimistic, unrealistic accuracy that doesn't hold up in production. Not seeing a swing this time doesn't prove the underlying mechanism is safe to repeat.
 
-Starter files for this week's lab will be added here before the lab session
-(pulled into your repo via `git fetch upstream && git merge upstream/main`,
-as introduced in the Week 1 lab).
+**2. Which line(s) caused the leak, and what did you compare to prove it — not just "the accuracy changed"?**
+`imputer.fit_transform(X[NUMERIC_FEATURES])` and `scaler.fit_transform(X[NUMERIC_FEATURES])` in the original train.py both ran on the full X, before train_test_split. I proved it by fitting a scaler on the full dataset (leaky) and a separate scaler on only the training split (correct) and comparing their `mean_` arrays directly. Every value differed — e.g. annual_income's mean was 43761.45 vs. 43213.02 — which is direct evidence the "training" statistics had already absorbed information from rows that should have been held out, independent of what happened to the accuracy number.
+
+**3. If production serving code recomputed its own StandardScaler from the last hour of requests instead of loading the one saved during training, what lecture topic does that describe, and how does it differ from the bug fixed here?**
+That's training/serving skew (a form of data leakage in the opposite direction) — the model would be scored using statistics computed from live, unlabeled, non-stationary traffic instead of the fixed statistics learned during training. Unlike this lab's bug, where test rows leaked into training, this scenario means serving-time inputs are transformed inconsistently with how the model was trained at all, since the scaler's mean/scale would drift every hour based on whatever requests happened to arrive. The fix in both cases is the same principle: fit statistics once, on the correct data (training only), and persist/reuse that exact fitted object everywhere downstream.
+
+**4. What does PCA's "state" mean in this pipeline? What would go wrong with a fresh PCA().fit_transform() on incoming requests?**
+PCA's fitted state is the rotation (the principal components) computed from the training data's covariance structure, along with the explained_variance_ratio_ it captures. That rotation is meant to be computed once and reused unchanged on every future input. If serving code called PCA().fit_transform() fresh on incoming requests, it would compute a brand-new rotation based on whatever small, arbitrary batch of requests happened to be present — producing components that don't correspond to the axes the model was actually trained on. The features fed to the classifier would be meaningless relative to what it learned, silently corrupting every prediction.
